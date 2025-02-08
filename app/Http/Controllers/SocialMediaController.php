@@ -40,8 +40,8 @@ class SocialMediaController extends Controller
         }
           $attachedMedia = [];
             foreach ($uploadedImages as $index => $imagePath) {
-                $photopath = $this->fb->fileToUpload($imagePath);
                 $photo = $this->uploadPhoto($imagePath);
+                // dd($photo);
                 $attachedMedia[] = ['media_fbid' => $photo['id']];
                 
             }
