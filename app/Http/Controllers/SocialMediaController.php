@@ -6,11 +6,14 @@ use Illuminate\Http\Request;
 use Facebook\Facebook;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+
 
 
 class SocialMediaController extends Controller
 {
     protected $fb;
+    protected $instagramAccountId;
 
     public function __construct()
     {
@@ -19,6 +22,7 @@ class SocialMediaController extends Controller
             'app_secret' => env('FACEBOOK_APP_SECRET'),
             'default_graph_version' => 'v22.0',
         ]);
+        $this->instagramAccountId = env('INSTA_ACCOUNT_ID');
     }
 
     public function post(Request $request)
@@ -29,19 +33,21 @@ class SocialMediaController extends Controller
             'images' => 'required|array|min:1', // Ensure at least one image is uploaded
             'images.*' => 'image|mimes:jpeg,png,jpg,gif,svg|max:2048', // Validate each image
         ]);
-
+        $imageUrls = [];
         // Store uploaded images
         $uploadedImages = [];
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $image) {
                 $path = $image->store('uploads', 'public'); // Store the image in storage/app/public/uploads
                 $uploadedImages[] = storage_path('app/public/' . $path); // Add full path to uploaded images
+                $publicUrl = asset(Storage::url(str_replace('public/', '', $path)));
+                $imageUrls[] = $publicUrl;
             }
         }
           $attachedMedia = [];
             foreach ($uploadedImages as $index => $imagePath) {
-                $photopath = $this->fb->fileToUpload($imagePath);
                 $photo = $this->uploadPhoto($imagePath);
+                // dd($photo);
                 $attachedMedia[] = ['media_fbid' => $photo['id']];
                 
             }
@@ -49,7 +55,7 @@ class SocialMediaController extends Controller
 // dd($finalAttachedMedia);
         // Postdddd to Facebook
         $fbResponse = $this->postToFacebook($request->message,$finalAttachedMedia);
-
+        $getContainerResponse = $this->getContainerResponse($imageUrls);
         // Return response
         return response()->json([
             'facebook' => $fbResponse,
@@ -92,4 +98,26 @@ class SocialMediaController extends Controller
         // Step 2: Return the response containing the media_fbid
         return $response->json();
     }   
+
+    public function post_to_insta()
+    {
+        $insta_acc = env('INSTA_ACCOUNT_ID');
+    }
+
+    public function getContainerResponse($imgArr)
+    {
+        foreach ($imgArr as $imageUrl) {
+            $containerResponse = Http::post("https://graph.facebook.com/v18.0/{$this->instagramAccountId}/media", [
+                'image_url' => $imageUrl,
+                'access_token' => env('FACEBOOK_ACCESS_TOKEN'),
+            ]);
+            $containerData = $containerResponse->json();
+dd( $containerData);
+            if (isset($containerData['id'])) {
+                $containerIds[] = $containerData['id'];
+            } else {
+                return response()->json(['error' => 'Failed to create Instagram container'], 400);
+            }
+        }
+    }
 }
